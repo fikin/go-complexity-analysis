@@ -23,7 +23,7 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 
 `--maintunder`: show functions with the Maintainability index < N (default: 20)
 
-`--selfimpdepth`: how many directory levels must be common between package and import to be considered self-import (default same as package)
+`--selfimpdepth`: how many path levels must be common between package and its import to be considered a self-import (default same as package)
 
 `--csvstats`: show functions stats in csv format. other flags are still valid.
 
@@ -46,6 +46,7 @@ $ go vet -vettool=$(which complexity) --csvstats ./src
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvstats ./...
 $ go vet -vettool=$(which complexity) --csvtotals ./src
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvtotals ./...
+$ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvtotals --selfimpdepth 4 ./...
 ```
 
 ## Github Actions

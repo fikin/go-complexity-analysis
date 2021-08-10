@@ -13,7 +13,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-const doc = "complexity is ..."
+const doc = "complexity is cyclomatic complexity and maintanability index analyzer"
 
 // Analyzer is ...
 var Analyzer = &analysis.Analyzer{
@@ -25,14 +25,30 @@ var Analyzer = &analysis.Analyzer{
 	},
 }
 
+type statsType struct {
+	loc           int
+	cyclo         int
+	maint         int
+	halsbreadDiff float64
+	halsbreadVol  float64
+}
+
 var (
 	cycloover  int
 	maintunder int
+	csvStats   bool
+	csvTotals  bool
+	totals     struct {
+		fncCnt int
+		statsType
+	}
 )
 
 func init() {
 	flag.IntVar(&cycloover, "cycloover", 10, "show functions with the Cyclomatic complexity > N")
 	flag.IntVar(&maintunder, "maintunder", 20, "show functions with the Maintainability index < N")
+	flag.BoolVar(&csvStats, "csvstats", false, "show function stats in csv (file, line, column, function name, cyclomatic complexity, maintainability index, halstead difficulty, halstead volume, loc)")
+	flag.BoolVar(&csvTotals, "csvtotals", false, "show total stats per package in csv format")
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -45,33 +61,62 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspect.Preorder(nodeFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
-			cycloComp := calcCycloComp(n)
-			if cycloComp > cycloover {
-				npos := n.Pos()
-				p := pass.Fset.File(npos).Position(npos)
-				msg := fmt.Sprintf("func %s seems to be complex (cyclomatic complexity=%d)\n", n.Name, cycloComp)
-				fmt.Printf("%s:%d:%d: %s", p.Filename, p.Line, p.Column, msg)
+
+			stats := statsType{
+				loc:   countLOC(pass.Fset, n),
+				cyclo: calcCycloComp(n),
 			}
+			stats.halsbreadDiff, stats.halsbreadVol = calcHalstComp(n)
+			stats.maint = calcMaintIndex(stats.halsbreadVol, stats.cyclo, stats.loc)
 
-			halstMet := calcHalstComp(n)
+			if stats.cyclo > cycloover || stats.maint < maintunder {
+				totals.fncCnt++
+				totals.loc += stats.loc
+				totals.halsbreadDiff += stats.halsbreadDiff
+				totals.cyclo += stats.cyclo
+				totals.halsbreadVol += stats.halsbreadVol
+				totals.maint += stats.maint
 
-			loc := countLOC(pass.Fset, n)
-			maintIdx := calcMaintIndex(halstMet["volume"], cycloComp, loc)
-			if maintIdx < maintunder {
-				npos := n.Pos()
-				p := pass.Fset.File(npos).Position(npos)
-				msg := fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)\n", n.Name, maintIdx)
-				fmt.Printf("%s:%d:%d: %s", p.Filename, p.Line, p.Column, msg)
+				if !csvTotals {
+					printFuncStats(pass, n, stats)
+				}
 			}
 
 			// Only when `go test`
 			if flag.Lookup("test.v") != nil {
-				pass.Reportf(n.Pos(), "Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", cycloComp, halstMet["difficulty"], halstMet["volume"])
+				pass.Reportf(n.Pos(), "Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", stats.cyclo, stats.halsbreadDiff, stats.halsbreadVol)
 			}
 		}
 	})
 
+	if csvTotals {
+		printStats(pass.Pkg.Name(), totals.fncCnt, -1, "total", totals.statsType)
+	}
+
 	return nil, nil
+}
+
+func printFuncStats(pass *analysis.Pass, n *ast.FuncDecl, stats statsType) {
+	npos := n.Pos()
+	pos := pass.Fset.File(npos).Position(npos)
+	if csvStats {
+		if stats.cyclo > cycloover || stats.maint < maintunder {
+			printStats(pos.Filename, pos.Line, pos.Column, n.Name.Name, stats)
+		}
+		return
+	}
+	if stats.cyclo > cycloover {
+		msg := fmt.Sprintf("func %s seems to be complex (cyclomatic complexity=%d)", n.Name, stats.cyclo)
+		fmt.Printf("%s:%d:%d: %s\n", pos.Filename, pos.Line, pos.Column, msg)
+	}
+	if stats.maint < maintunder {
+		msg := fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)", n.Name, stats.maint)
+		fmt.Printf("%s:%d:%d: %s\n", pos.Filename, pos.Line, pos.Column, msg)
+	}
+}
+
+func printStats(filename string, line int, column int, name string, stats statsType) {
+	fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%d\n", filename, line, column, name, stats.cyclo, stats.maint, stats.halsbreadDiff, stats.halsbreadVol, stats.loc)
 }
 
 type branchVisitor func(n ast.Node) (w ast.Visitor)
@@ -101,14 +146,13 @@ func calcCycloComp(fd *ast.FuncDecl) int {
 	return comp
 }
 
-func calcHalstComp(fd *ast.FuncDecl) map[string]float64 {
+func calcHalstComp(fd *ast.FuncDecl) (difficulty float64, volume float64) {
 	operators, operands := map[string]int{}, map[string]int{}
-	halstMet := map[string]float64{}
 
 	walkDecl(fd, operators, operands)
 
 	distOpt := len(operators) // distinct operators
-	distOpd := len(operands)  // distrinct operands
+	distOpd := len(operands)  // distinct operands
 	var sumOpt, sumOpd int
 	for _, val := range operators {
 		sumOpt += val
@@ -120,10 +164,12 @@ func calcHalstComp(fd *ast.FuncDecl) map[string]float64 {
 
 	nVocab := distOpt + distOpd
 	length := sumOpt + sumOpd
-	halstMet["volume"] = float64(length) * math.Log2(float64(nVocab))
-	halstMet["difficulty"] = float64(distOpt*sumOpd) / float64(2*distOpd)
+	volume = float64(length) * log2Of(float64(nVocab))
+	if distOpd > 0 {
+		difficulty = float64(distOpt*sumOpd) / float64(2*distOpd)
+	}
 
-	return halstMet
+	return
 }
 
 // counts lines of a function
@@ -149,6 +195,15 @@ func logOf(val float64) float64 {
 		return 0
 	default:
 		return math.Log(val)
+	}
+}
+
+func log2Of(val float64) float64 {
+	switch val {
+	case 0:
+		return 0
+	default:
+		return math.Log2(val)
 	}
 }
 

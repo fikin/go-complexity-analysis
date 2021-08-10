@@ -16,10 +16,16 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 
 `--maintunder`: show functions with the Maintainability index < N (default: 20)
 
+`--csvstats`: show functions stats in csv format. other flags are still valid.
+
+`--csvtotals`: show package totals in csv format. other flags are still valid.
+
 ## Output
 ```
 <filename>:<line>:<column>: func <funcname> seems to be complex (cyclomatic complexity=<cyclomatic complexity>)
 <filename>:<line>:<column>: func <funcname> seems to have low maintainability (maintainability index=<maintainability index>)
+<filename>,<line>,<column>,<funcname>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>
+<pkgname>,<functions count>,-1,total,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>
 ```
 
 ## Examples
@@ -27,6 +33,10 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 $ go vet -vettool=$(which complexity) --cycloover 10 ./...
 $ go vet -vettool=$(which complexity) --maintunder 20 main.go
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 ./src
+$ go vet -vettool=$(which complexity) --csvstats ./src
+$ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvstats ./...
+$ go vet -vettool=$(which complexity) --csvtotals ./src
+$ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvtotals ./...
 ```
 
 ## Github Actions

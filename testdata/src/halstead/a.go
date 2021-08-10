@@ -12,7 +12,7 @@ func f2() { // want "Cyclomatic complexity: 1, Halstead difficulty: 6.857, volum
 	println(avg)
 }
 
-func f3() { // want "Cyclomatic complexity: 2, Halstead difficulty: NaN, volume: 25.266"
+func f3() { // want "Cyclomatic complexity: 2, Halstead difficulty: 0.000, volume: 25.266"
 	if false {
 
 	} else {
@@ -44,5 +44,5 @@ func f4() { // want "Cyclomatic complexity: 9, Halstead difficulty: 10.833, volu
 type t1 struct {
 }
 
-func (t *t1) f5() { // want "Cyclomatic complexity: 1, Halstead difficulty: NaN, volume: 10.000"
+func (t *t1) f5() { // want "Cyclomatic complexity: 1, Halstead difficulty: 0.000, volume: 10.000"
 }

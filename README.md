@@ -7,7 +7,7 @@ go-complexity-analysis calculates:
 * lines of code
   of golang functions.
 
-Additionally it counts imports of packages from same application. This is indicator of interconnection between packages akin self imports. Higher number suggests more interconnections and lower refactoring capability.
+Additionally it counts package imports from same application. This is indicator of how interconnected application packages are with each other. Higher number suggests more interconnections and lower code refactoring capability.
 
 # Install
 
@@ -38,7 +38,7 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 ```
 <filename>:<line>:<column>: func <funcname> seems to be complex (cyclomatic complexity=<cyclomatic complexity>)
 <filename>:<line>:<column>: func <funcname> seems to have low maintainability (maintainability index=<maintainability index>)
-<filename>,<line>,<column>,<funcname>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>,<imports count>,<self imports count>
+<filename>,<line>,<column>,<funcname>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>,<imports count>,<same app imports>
 <pkgname>,<functions count>,-1,total,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>,<imports count>,<self imports count>
 ```
 
@@ -115,19 +115,24 @@ The thresholds are as follows:
 20-100 = Green
 ```
 
-## Package interconnection index
+## Same application interconnection index
 
-Self-import metric is count of how many of all package imports, are of packages from same application. Same application import is assumed when package and the import paths are having same path, up to the specified self import depth value.
+Same application package imports count is metric about inter-connectedness. 
 
-This counter is used for post analysis of the entire application, looking for how inter-connected packages are. 
+Package imports as total count are not very meaningful, but imports of packages from same application are indication of problematic design.
 
-In go, minimum package inter-connection is N-1, where N is application's packages count.
+In go, a good practice is every package to declare its externally needed interfaces which results in no extra package import. Otherwise it is likely the programming is happening against structures which is anti-pattern. 
 
-For practical purposes N is also a good value.
+In same application, all reusable and common data structures can be abstracted in single own package. For one application, this would result in single same application import count.
 
-Anything >N is indication what packages are perhaps more interconnected than necessary.
+Criteria to determine same application import is based on package and import having same base path, up to indicated self import depth level value (--selfimpdepth).
 
-Determining N is possible only via post processing tools. One can export --csvtotals and count packages from same application. Application self-import is max of all such packages.
+This analyzer is printing import counts per package (if --csvtotoal is used) and repeats same values in each function from same package (if --csvstats is used).
+
+By applying post processing on package statistics, one can count distinct packages per application (N) and how many of all imports are to same application packages (M, max of same application values per application). Then:
+* for minimum complexity, M = N - 1. This is the absolute minimum complexity possible, where each package is coded independently of each other and only one package (main) integrates them all together.
+* for practical purposes M = N. This is the optimal value, where besides one package used to integrated the rest, there is one package containing reusable application data model.
+* anything where M > N would likely need code refactoring.
 
 ## CSV export
 

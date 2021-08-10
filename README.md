@@ -1,5 +1,12 @@
 # go-complexity-analysis
-go-complexity-analysis calculates the Cyclomatic complexities, the Halstead complexities and the Maintainability indices of golang functions.
+go-complexity-analysis calculates:
+* the Cyclomatic complexities
+* the Halstead complexities (difficulty and volume)
+* the Maintainability indices
+* lines of code
+  of golang functions.
+
+Additionally it counts imports of packages from same application. This is indicator of interconnection between packages akin self imports. Higher number suggests more interconnections and lower refactoring capability.
 
 # Install
 ```sh
@@ -16,6 +23,8 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 
 `--maintunder`: show functions with the Maintainability index < N (default: 20)
 
+`--selfimpdepth`: how many directory levels must be common between package and import to be considered self-import (default same as package)
+
 `--csvstats`: show functions stats in csv format. other flags are still valid.
 
 `--csvtotals`: show package totals in csv format. other flags are still valid.
@@ -24,8 +33,8 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 ```
 <filename>:<line>:<column>: func <funcname> seems to be complex (cyclomatic complexity=<cyclomatic complexity>)
 <filename>:<line>:<column>: func <funcname> seems to have low maintainability (maintainability index=<maintainability index>)
-<filename>,<line>,<column>,<funcname>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>
-<pkgname>,<functions count>,-1,total,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>
+<filename>,<line>,<column>,<funcname>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>,<imports count>,<self imports count>
+<pkgname>,<functions count>,-1,total,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>,<imports count>,<self imports count>
 ```
 
 ## Examples

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"strings"
 
 	"go/ast"
 	"go/token"
@@ -26,19 +27,22 @@ var Analyzer = &analysis.Analyzer{
 }
 
 type statsType struct {
-	loc           int
-	cyclo         int
-	maint         int
-	halsbreadDiff float64
-	halsbreadVol  float64
+	loc            int
+	cyclo          int
+	maint          int
+	halsbreadDiff  float64
+	halsbreadVol   float64
+	importsCnt     int
+	selfImportsCnt int
 }
 
 var (
-	cycloover  int
-	maintunder int
-	csvStats   bool
-	csvTotals  bool
-	totals     struct {
+	cycloover    int
+	maintunder   int
+	selfimpdepth int
+	csvStats     bool
+	csvTotals    bool
+	totals       struct {
 		fncCnt int
 		statsType
 	}
@@ -47,11 +51,14 @@ var (
 func init() {
 	flag.IntVar(&cycloover, "cycloover", 10, "show functions with the Cyclomatic complexity > N")
 	flag.IntVar(&maintunder, "maintunder", 20, "show functions with the Maintainability index < N")
-	flag.BoolVar(&csvStats, "csvstats", false, "show function stats in csv (file, line, column, function name, cyclomatic complexity, maintainability index, halstead difficulty, halstead volume, loc)")
+	flag.IntVar(&selfimpdepth, "selfimpdepth", -1, "how many directory levels must be common b/n package and import to be considered same application")
+	flag.BoolVar(&csvStats, "csvstats", false, "show function stats in csv")
 	flag.BoolVar(&csvTotals, "csvtotals", false, "show total stats per package in csv format")
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	importsCnt, selfImportsCnt := calcImportsCnt(pass)
+
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	nodeFilter := []ast.Node{
@@ -63,8 +70,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncDecl:
 
 			stats := statsType{
-				loc:   countLOC(pass.Fset, n),
-				cyclo: calcCycloComp(n),
+				importsCnt:     importsCnt,
+				selfImportsCnt: selfImportsCnt,
+				loc:            countLOC(pass.Fset, n),
+				cyclo:          calcCycloComp(n),
 			}
 			stats.halsbreadDiff, stats.halsbreadVol = calcHalstComp(n)
 			stats.maint = calcMaintIndex(stats.halsbreadVol, stats.cyclo, stats.loc)
@@ -96,6 +105,33 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+func calcImportsCnt(pass *analysis.Pass) (int, int) {
+	l1 := strings.Split(pass.Pkg.Path(), "/")
+	if selfimpdepth == -1 {
+		return len(pass.Pkg.Imports()), 0
+	}
+	cnt := 0
+	for _, imp := range pass.Pkg.Imports() {
+		l2 := strings.Split(imp.Path(), "/")
+		if areHavingSameElements(l1, l2, selfimpdepth) {
+			cnt++
+		}
+	}
+	return len(pass.Pkg.Imports()), cnt
+}
+
+func areHavingSameElements(l1, l2 []string, to int) bool {
+	if len(l2) < to || len(l1) < to {
+		return false
+	}
+	for i := 0; i < to-1; i++ {
+		if l1[i] != l2[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func printFuncStats(pass *analysis.Pass, n *ast.FuncDecl, stats statsType) {
 	npos := n.Pos()
 	pos := pass.Fset.File(npos).Position(npos)
@@ -116,7 +152,7 @@ func printFuncStats(pass *analysis.Pass, n *ast.FuncDecl, stats statsType) {
 }
 
 func printStats(filename string, line int, column int, name string, stats statsType) {
-	fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%d\n", filename, line, column, name, stats.cyclo, stats.maint, stats.halsbreadDiff, stats.halsbreadVol, stats.loc)
+	fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%d,%d,%d\n", filename, line, column, name, stats.cyclo, stats.maint, stats.halsbreadDiff, stats.halsbreadVol, stats.loc, stats.importsCnt, stats.selfImportsCnt)
 }
 
 type branchVisitor func(n ast.Node) (w ast.Visitor)

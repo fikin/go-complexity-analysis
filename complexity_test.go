@@ -3,7 +3,7 @@ package complexity_test
 import (
 	"testing"
 
-	"github.com/shoooooman/go-complexity-analysis"
+	"github.com/fikin/go-complexity-analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 

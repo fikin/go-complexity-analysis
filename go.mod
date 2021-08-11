@@ -1,4 +1,4 @@
-module github.com/shoooooman/go-complexity-analysis
+module github.com/fikin/go-complexity-analysis
 
 go 1.15
 

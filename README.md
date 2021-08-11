@@ -12,7 +12,7 @@ Additionally it counts package imports from same application. This is indicator 
 # Install
 
 ```sh
-$ go get github.com/shoooooman/go-complexity-analysis/cmd/complexity
+$ go get github.com/fikin/go-complexity-analysis/cmd/complexity
 ```
 
 # Usage
@@ -59,7 +59,7 @@ $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvtotals 
 
 You can use the Github Actions to execute the complexity command on Github pull requests with [reviewdog](https://github.com/reviewdog/reviewdog).
 
-See [shoooooman/go-complexity-analysis-action](https://github.com/shoooooman/go-complexity-analysis-action) for the details.
+See [fikin/go-complexity-analysis-action](https://github.com/fikin/go-complexity-analysis-action) for the details.
 
 
 # Metrics

@@ -42,10 +42,6 @@ var (
 	selfimpdepth int
 	csvStats     bool
 	csvTotals    bool
-	totals       struct {
-		fncCnt int
-		statsType
-	}
 )
 
 func init() {
@@ -57,7 +53,13 @@ func init() {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	importsCnt, selfImportsCnt := calcImportsCnt(pass)
+	totals := struct {
+		fncCnt int
+		statsType
+	}{}
+	errorsFound := false
+
+	totals.importsCnt, totals.selfImportsCnt = calcImportsCnt(pass)
 
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
@@ -70,8 +72,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncDecl:
 
 			stats := statsType{
-				importsCnt:     importsCnt,
-				selfImportsCnt: selfImportsCnt,
+				importsCnt:     totals.importsCnt,
+				selfImportsCnt: totals.selfImportsCnt,
 				loc:            countLOC(pass.Fset, n),
 				cyclo:          calcCycloComp(n),
 			}
@@ -86,6 +88,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				totals.halsbreadVol += stats.halsbreadVol
 				totals.maint += stats.maint
 
+				errorsFound = true
 				if !csvTotals {
 					printFuncStats(pass, n, stats)
 				}
@@ -102,6 +105,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		printStats(pass.Pkg.Name(), totals.fncCnt, -1, "total", totals.statsType)
 	}
 
+	if errorsFound {
+		return nil, fmt.Errorf("complexity test failed")
+	}
 	return nil, nil
 }
 
@@ -219,7 +225,6 @@ func countLOC(fs *token.FileSet, n *ast.FuncDecl) int {
 // calcMaintComp calculates the maintainability index
 // source: https://docs.microsoft.com/en-us/archive/blogs/codeanalysis/maintainability-index-range-and-meaning
 func calcMaintIndex(halstComp float64, cycloComp, loc int) int {
-
 	origVal := 171.0 - 5.2*logOf(halstComp) - 0.23*float64(cycloComp) - 16.2*logOf(float64(loc))
 	normVal := int(math.Max(0.0, origVal*100.0/171.0))
 	return normVal

@@ -29,9 +29,11 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 
 `--selfimpdepth`: how many path levels must be common between package and its import to be considered a self-import (default same as package)
 
-`--csvstats`: show functions stats in csv format. other flags are still valid.
+`--csvstats`: show functions stats in csv format. other flags are still valid
 
-`--csvtotals`: show package totals in csv format. other flags are still valid.
+`--csvtotals`: show package totals in csv format. other flags are still valid
+
+`--mustfail`:exit with error if some function did not meet expected thresholds
 
 ## Output
 

@@ -42,6 +42,7 @@ var (
 	selfimpdepth int
 	csvStats     bool
 	csvTotals    bool
+	mustFail     bool
 )
 
 func init() {
@@ -50,6 +51,7 @@ func init() {
 	flag.IntVar(&selfimpdepth, "selfimpdepth", -1, "how many directory levels must be common b/n package and import to be considered same application")
 	flag.BoolVar(&csvStats, "csvstats", false, "show function stats in csv")
 	flag.BoolVar(&csvTotals, "csvtotals", false, "show total stats per package in csv format")
+	flag.BoolVar(&mustFail, "mustfail", false, "exit with error if some function did not meet expected thresholds")
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -105,7 +107,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		printStats(pass.Pkg.Name(), totals.fncCnt, -1, "total", totals.statsType)
 	}
 
-	if errorsFound {
+	if errorsFound && mustFail {
 		return nil, fmt.Errorf("complexity test failed")
 	}
 	return nil, nil
@@ -207,9 +209,10 @@ func calcHalstComp(fd *ast.FuncDecl) (difficulty float64, volume float64) {
 	nVocab := distOpt + distOpd
 	length := sumOpt + sumOpd
 	volume = float64(length) * log2Of(float64(nVocab))
-	if distOpd > 0 {
-		difficulty = float64(distOpt*sumOpd) / float64(2*distOpd)
+	if distOpd == 0 {
+		distOpd = 1
 	}
+	difficulty = float64(distOpt*sumOpd) / float64(2*distOpd)
 
 	return
 }

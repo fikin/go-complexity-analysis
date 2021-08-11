@@ -209,10 +209,11 @@ func calcHalstComp(fd *ast.FuncDecl) (difficulty float64, volume float64) {
 	nVocab := distOpt + distOpd
 	length := sumOpt + sumOpd
 	volume = float64(length) * log2Of(float64(nVocab))
+	divisor := float64(2 * distOpd)
 	if distOpd == 0 {
-		distOpd = math.MaxInt32
+		divisor = 0.0000000000001
 	}
-	difficulty = float64(distOpt*sumOpd) / float64(2*distOpd)
+	difficulty = float64(distOpt*sumOpd) / divisor
 
 	return
 }

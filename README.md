@@ -35,6 +35,8 @@ $ go vet -vettool=$(which complexity) [flags] [directory/file]
 
 `--mustfail`:exit with error if some function did not meet expected thresholds
 
+`--skip`:skip package names which contain any substring from a given comma separated list from complexity checking
+
 ## Output
 
 ```
@@ -55,6 +57,7 @@ $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvstats .
 $ go vet -vettool=$(which complexity) --csvtotals ./src
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvtotals ./...
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 --csvtotals --selfimpdepth 4 ./...
+$ go vet -vettool=$(which complexity) --skip _test,embedded ./...
 ```
 
 ## Github Actions

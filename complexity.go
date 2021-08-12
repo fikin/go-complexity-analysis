@@ -43,6 +43,7 @@ var (
 	csvStats     bool
 	csvTotals    bool
 	mustFail     bool
+	skip string
 )
 
 func init() {
@@ -52,9 +53,24 @@ func init() {
 	flag.BoolVar(&csvStats, "csvstats", false, "show function stats in csv")
 	flag.BoolVar(&csvTotals, "csvtotals", false, "show total stats per package in csv format")
 	flag.BoolVar(&mustFail, "mustfail", false, "exit with error if some function did not meet expected thresholds")
+	flag.StringVar(&skip, "skip", "", "skip package names which contain any substring from a given comma separated list from complexity checking")
 }
 
+
+func newFilters(filters string) []string{
+	if filters == "" {
+		return nil
+	}
+	return strings.Split(strings.TrimSpace(filters), ",")
+}
+
+
 func run(pass *analysis.Pass) (interface{}, error) {
+
+	if skipFile(pass.Pkg.Name()) {
+		return nil, nil
+	}
+
 	totals := struct {
 		fncCnt int
 		statsType
@@ -91,6 +107,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				totals.maint += stats.maint
 
 				errorsFound = true
+
 				if !csvTotals {
 					printFuncStats(pass, n, stats)
 				}
@@ -111,6 +128,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, fmt.Errorf("complexity test failed")
 	}
 	return nil, nil
+}
+
+func skipFile(filename string) bool {
+	for _, filter := range newFilters(skip) {
+		if strings.Contains(filename, filter){
+			return true
+		}
+	}
+	return false
 }
 
 func calcImportsCnt(pass *analysis.Pass) (int, int) {

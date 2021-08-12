@@ -43,7 +43,7 @@ var (
 	csvStats     bool
 	csvTotals    bool
 	mustFail     bool
-	skip string
+	skip         string
 )
 
 func init() {
@@ -56,18 +56,15 @@ func init() {
 	flag.StringVar(&skip, "skip", "", "skip package names which contain any substring from a given comma separated list from complexity checking")
 }
 
-
-func newFilters(filters string) []string{
+func newFilters(filters string) []string {
 	if filters == "" {
 		return nil
 	}
 	return strings.Split(strings.TrimSpace(filters), ",")
 }
 
-
 func run(pass *analysis.Pass) (interface{}, error) {
-
-	if skipFile(pass.Pkg.Name()) {
+	if skipFile(pass.Pkg.Path()) {
 		return nil, nil
 	}
 
@@ -132,7 +129,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 func skipFile(filename string) bool {
 	for _, filter := range newFilters(skip) {
-		if strings.Contains(filename, filter){
+		if strings.Contains(filename, filter) {
 			return true
 		}
 	}

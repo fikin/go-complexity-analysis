@@ -27,190 +27,133 @@ var Analyzer = &analysis.Analyzer{
 }
 
 type statsType struct {
+	filename       string
+	line           int
+	col            int
+	funcname       string
 	loc            int
+	constLoc       int
 	cyclo          int
-	maint          int
+	maintenability int
 	halsbreadDiff  float64
 	halsbreadVol   float64
-	importsCnt     int
-	selfImportsCnt int
+	tooComplex     bool
+	notMaintenable bool
+	tooManyLines   bool
 }
 
 var (
-	cycloover    int
-	maintunder   int
-	selfimpdepth int
-	csvStats     bool
-	csvTotals    bool
-	mustFail     bool
-	skip         string
+	cycloover       int
+	maintunder      int
+	maxlines        int
+	asCsv           bool
+	printEverything bool
 )
 
 func init() {
-	flag.IntVar(&cycloover, "cycloover", 10, "show functions with the Cyclomatic complexity > N")
-	flag.IntVar(&maintunder, "maintunder", 20, "show functions with the Maintainability index < N")
-	flag.IntVar(&selfimpdepth, "selfimpdepth", -1, "how many directory levels must be common b/n package and import to be considered same application")
-	flag.BoolVar(&csvStats, "csvstats", false, "show function stats in csv")
-	flag.BoolVar(&csvTotals, "csvtotals", false, "show total stats per package in csv format")
-	flag.BoolVar(&mustFail, "mustfail", false, "exit with error if some function did not meet expected thresholds")
-	flag.StringVar(&skip, "skip", "", "skip package names which contain any substring from a given comma separated list from complexity checking")
-}
-
-func newFilters(filters string) []string {
-	if filters == "" {
-		return nil
-	}
-	return strings.Split(strings.TrimSpace(filters), ",")
+	flag.IntVar(&cycloover, "cycloover", 10, "print functions with the Cyclomatic complexity > N")
+	flag.IntVar(&maintunder, "maintunder", 20, "print functions with the Maintainability index < N")
+	flag.IntVar(&maxlines, "maxlines", 50, "print functions with too many LOC, excluding constants, index < N")
+	flag.BoolVar(&asCsv, "csv", false, "print stats in csv")
+	flag.BoolVar(&printEverything, "allstats", false, "print all stats, even ok ones")
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	if skipFile(pass.Pkg.Path()) {
-		return nil, nil
+	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !ok {
+		return nil, fmt.Errorf("internal error, wrong inspector.Inspector type")
 	}
-
-	totals := struct {
-		fncCnt int
-		statsType
-	}{}
-	errorsFound := false
-
-	totals.importsCnt, totals.selfImportsCnt = calcImportsCnt(pass)
-
-	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-
-	nodeFilter := []ast.Node{
-		(*ast.FuncDecl)(nil),
-	}
-
-	inspect.Preorder(nodeFilter, func(n ast.Node) {
-		switch n := n.(type) {
-		case *ast.FuncDecl:
-
-			stats := statsType{
-				importsCnt:     totals.importsCnt,
-				selfImportsCnt: totals.selfImportsCnt,
-				loc:            countLOC(pass.Fset, n),
-				cyclo:          calcCycloComp(n),
-			}
-			stats.halsbreadDiff, stats.halsbreadVol = calcHalstComp(n)
-			stats.maint = calcMaintIndex(stats.halsbreadVol, stats.cyclo, stats.loc)
-
-			if stats.cyclo > cycloover || stats.maint < maintunder {
-				totals.fncCnt++
-				totals.loc += stats.loc
-				totals.halsbreadDiff += stats.halsbreadDiff
-				totals.cyclo += stats.cyclo
-				totals.halsbreadVol += stats.halsbreadVol
-				totals.maint += stats.maint
-
-				errorsFound = true
-
-				if !csvTotals {
-					printFuncStats(pass, n, stats)
-				}
-			}
-
-			// Only when `go test`
-			if flag.Lookup("test.v") != nil {
-				pass.Reportf(n.Pos(), "Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", stats.cyclo, stats.halsbreadDiff, stats.halsbreadVol)
-			}
+	someCheckFailed := false
+	inspector.Preorder([]ast.Node{(*ast.File)(nil)}, func(n ast.Node) {
+		fileIgnored := isFileOrFuncToBeIgnored(n)
+		if fileIgnored && !printEverything {
+			return
 		}
+		astVisitFunctions(n, func(nn *ast.FuncDecl) {
+			funcIgnored := isFileOrFuncToBeIgnored(nn)
+			if funcIgnored && !printEverything {
+				if flag.Lookup("test.v") != nil {
+					pass.Reportf(nn.Pos(), "ignored")
+				}
+				return
+			}
+			stats := calcFuncStats(pass, nn)
+			// Only when `go test`
+			printFuncStats(stats, fileIgnored, funcIgnored)
+			if flag.Lookup("test.v") != nil {
+				pass.Reportf(nn.Pos(), "Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", stats.cyclo, stats.halsbreadDiff, stats.halsbreadVol)
+			} else if stats.tooComplex || stats.notMaintenable || stats.tooManyLines {
+				someCheckFailed = true
+			}
+		})
 	})
-
-	if csvTotals {
-		printStats(pass.Pkg.Name(), totals.fncCnt, -1, "total", totals.statsType)
-	}
-
-	if errorsFound && mustFail {
-		return nil, fmt.Errorf("complexity test failed")
+	if someCheckFailed {
+		return nil, fmt.Errorf("for one or more functions")
 	}
 	return nil, nil
 }
 
-func skipFile(filename string) bool {
-	for _, filter := range newFilters(skip) {
-		if strings.Contains(filename, filter) {
-			return true
-		}
-	}
-	return false
-}
-
-func calcImportsCnt(pass *analysis.Pass) (int, int) {
-	l1 := strings.Split(pass.Pkg.Path(), "/")
-	if selfimpdepth == -1 {
-		return len(pass.Pkg.Imports()), 0
-	}
-	cnt := 0
-	for _, imp := range pass.Pkg.Imports() {
-		l2 := strings.Split(imp.Path(), "/")
-		if areHavingSameElements(l1, l2, selfimpdepth) {
-			cnt++
-		}
-	}
-	return len(pass.Pkg.Imports()), cnt
-}
-
-func areHavingSameElements(l1, l2 []string, to int) bool {
-	if len(l2) < to || len(l1) < to {
-		return false
-	}
-	for i := 0; i < to-1; i++ {
-		if l1[i] != l2[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func printFuncStats(pass *analysis.Pass, n *ast.FuncDecl, stats statsType) {
-	npos := n.Pos()
-	pos := pass.Fset.File(npos).Position(npos)
-	if csvStats {
-		if stats.cyclo > cycloover || stats.maint < maintunder {
-			printStats(pos.Filename, pos.Line, pos.Column, n.Name.Name, stats)
-		}
-		return
-	}
-	if stats.cyclo > cycloover {
-		msg := fmt.Sprintf("func %s seems to be complex (cyclomatic complexity=%d)", n.Name, stats.cyclo)
-		fmt.Printf("%s:%d:%d: %s\n", pos.Filename, pos.Line, pos.Column, msg)
-	}
-	if stats.maint < maintunder {
-		msg := fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)", n.Name, stats.maint)
-		fmt.Printf("%s:%d:%d: %s\n", pos.Filename, pos.Line, pos.Column, msg)
-	}
-}
-
-func printStats(filename string, line int, column int, name string, stats statsType) {
-	fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%d,%d,%d\n", filename, line, column, name, stats.cyclo, stats.maint, stats.halsbreadDiff, stats.halsbreadVol, stats.loc, stats.importsCnt, stats.selfImportsCnt)
-}
-
 type branchVisitor func(n ast.Node) (w ast.Visitor)
 
-// Visit is ...
+// Visit is callback from ast to visit the node
 func (v branchVisitor) Visit(n ast.Node) (w ast.Visitor) {
 	return v(n)
 }
 
-// calcCycloComp calculates the Cyclomatic complexity
-func calcCycloComp(fd *ast.FuncDecl) int {
-	comp := 1
+func calcFuncStats(pass *analysis.Pass, n *ast.FuncDecl) statsType {
+	nPos := n.Pos()
+	pos := pass.Fset.File(nPos).Position(nPos)
+
+	stats := statsType{
+		filename: pos.Filename,
+		line:     pos.Line,
+		col:      pos.Column,
+		funcname: n.Name.Name,
+		loc:      countLOC(pass.Fset, n),
+		constLoc: couldConstantsLOC(pass.Fset, n),
+		cyclo:    calcCycloComp(n),
+	}
+	stats.halsbreadDiff, stats.halsbreadVol = calcHalstComp(n)
+	stats.maintenability = calcMaintIndex(stats.halsbreadVol, stats.cyclo, stats.loc)
+	stats.tooComplex = stats.cyclo > cycloover
+	stats.notMaintenable = stats.maintenability < maintunder
+	stats.tooManyLines = (stats.loc - stats.constLoc) > maxlines
+
+	return stats
+}
+
+func astVisitFunctions(n ast.Node, cb func(*ast.FuncDecl)) {
 	var v ast.Visitor
-	v = branchVisitor(func(n ast.Node) (w ast.Visitor) {
-		switch n := n.(type) {
-		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.CaseClause, *ast.CommClause:
-			comp++
-		case *ast.BinaryExpr:
-			if n.Op == token.LAND || n.Op == token.LOR {
-				comp++
-			}
+	v = branchVisitor(func(nn ast.Node) ast.Visitor {
+		switch nn.(type) {
+		case *ast.FuncDecl:
+			cb(nn.(*ast.FuncDecl))
 		}
 		return v
 	})
-	ast.Walk(v, fd)
+	ast.Walk(v, n)
+}
 
-	return comp
+func isFileOrFuncToBeIgnored(n ast.Node) bool {
+	switch n := n.(type) {
+	case *ast.File:
+		return isCommentRecognized(n.Doc)
+	case *ast.FuncDecl:
+		return isCommentRecognized(n.Doc)
+	}
+	return false
+}
+
+func isCommentRecognized(cc *ast.CommentGroup) bool {
+	if cc == nil || cc.List == nil {
+		return false
+	}
+	for _, txt := range cc.List {
+		if (strings.Contains(txt.Text, "Code generated by") && strings.Contains(txt.Text, "DO NOT EDIT.")) || txt.Text == "//complexity:ignore" {
+			return true
+		}
+	}
+	return false
 }
 
 func calcHalstComp(fd *ast.FuncDecl) (difficulty float64, volume float64) {
@@ -239,40 +182,6 @@ func calcHalstComp(fd *ast.FuncDecl) (difficulty float64, volume float64) {
 	difficulty = float64(distOpt*sumOpd) / divisor
 
 	return
-}
-
-// counts lines of a function
-func countLOC(fs *token.FileSet, n *ast.FuncDecl) int {
-	f := fs.File(n.Pos())
-	startLine := f.Line(n.Pos())
-	endLine := f.Line(n.End())
-	return endLine - startLine + 1
-}
-
-// calcMaintComp calculates the maintainability index
-// source: https://docs.microsoft.com/en-us/archive/blogs/codeanalysis/maintainability-index-range-and-meaning
-func calcMaintIndex(halstComp float64, cycloComp, loc int) int {
-	origVal := 171.0 - 5.2*logOf(halstComp) - 0.23*float64(cycloComp) - 16.2*logOf(float64(loc))
-	normVal := int(math.Max(0.0, origVal*100.0/171.0))
-	return normVal
-}
-
-func logOf(val float64) float64 {
-	switch val {
-	case 0:
-		return 0
-	default:
-		return math.Log(val)
-	}
-}
-
-func log2Of(val float64) float64 {
-	switch val {
-	case 0:
-		return 0
-	default:
-		return math.Log2(val)
-	}
 }
 
 func walkDecl(n ast.Node, opt map[string]int, opd map[string]int) {
@@ -572,5 +481,96 @@ func walkExpr(exp ast.Expr, opt map[string]int, opd map[string]int) {
 func appendValidSymb(lvalid bool, rvalid bool, opt map[string]int, symb string) {
 	if lvalid && rvalid {
 		opt[symb]++
+	}
+}
+
+// calcMaintComp calculates the maintainability index
+// source: https://docs.microsoft.com/en-us/archive/blogs/codeanalysis/maintainability-index-range-and-meaning
+func calcMaintIndex(halstComp float64, cycloComp, loc int) int {
+	origVal := 171.0 - 5.2*logOf(halstComp) - 0.23*float64(cycloComp) - 16.2*logOf(float64(loc))
+	normVal := int(math.Max(0.0, origVal*100.0/171.0))
+	return normVal
+}
+
+func logOf(val float64) float64 {
+	switch val {
+	case 0:
+		return 0
+	default:
+		return math.Log(val)
+	}
+}
+
+func log2Of(val float64) float64 {
+	switch val {
+	case 0:
+		return 0
+	default:
+		return math.Log2(val)
+	}
+}
+
+// calcCycloComp calculates the Cyclomatic complexity
+func calcCycloComp(fd *ast.FuncDecl) int {
+	comp := 1
+	var v ast.Visitor
+	v = branchVisitor(func(n ast.Node) (w ast.Visitor) {
+		switch n := n.(type) {
+		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.CaseClause, *ast.CommClause:
+			comp++
+		case *ast.BinaryExpr:
+			if n.Op == token.LAND || n.Op == token.LOR {
+				comp++
+			}
+		}
+		return v
+	})
+	ast.Walk(v, fd)
+
+	return comp
+}
+
+func couldConstantsLOC(fs *token.FileSet, n *ast.FuncDecl) int {
+	loc := 0
+	var v ast.Visitor
+	v = branchVisitor(func(nn ast.Node) ast.Visitor {
+		switch nn.(type) {
+		case *ast.ValueSpec:
+			loc += countLOC(fs, nn)
+		}
+		return v
+	})
+	ast.Walk(v, n)
+	return loc
+}
+
+// counts lines of a function
+func countLOC(fs *token.FileSet, n ast.Node) int {
+	f := fs.File(n.Pos())
+	startLine := f.Line(n.Pos())
+	endLine := f.Line(n.End())
+	return endLine - startLine + 1
+}
+
+func printFuncStats(stats statsType, fileIgnored bool, funcIgnored bool) {
+	if asCsv {
+		fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%d,%d,%t,%t,%t,%t,%t\n",
+			stats.filename, stats.line, stats.col, stats.funcname,
+			stats.cyclo, stats.maintenability, stats.halsbreadDiff,
+			stats.halsbreadVol, stats.loc, stats.constLoc,
+			fileIgnored, funcIgnored, stats.tooComplex, stats.notMaintenable, stats.tooManyLines)
+		return
+	}
+	if stats.tooComplex {
+		msg := fmt.Sprintf("func %s seems to be complex (cyclomatic complexity=%d)", stats.funcname, stats.cyclo)
+		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
+	}
+	if stats.notMaintenable {
+		msg := fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)", stats.funcname, stats.maintenability)
+		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
+	}
+	if stats.tooManyLines {
+		msg := fmt.Sprintf("func %s seems to have too many lines, excluding const declarations (logicLOC=%d)", stats.funcname, (stats.loc - stats.constLoc))
+		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
 	}
 }

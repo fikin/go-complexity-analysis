@@ -1,14 +1,20 @@
-package complexity_test
+package complexity
 
 import (
 	"testing"
 
-	"github.com/fikin/go-complexity-analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 // TestAnalyzer is a test for Analyzer.
 func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, complexity.Analyzer, []string{"a", "halstead"}...)
+	analysistest.Run(t, testdata, Analyzer, []string{"a", "halstead"}...)
+}
+
+// TestAnalyzer2 is a test for Analyzer.
+func TestAnalyzer2(t *testing.T) {
+	testdata := analysistest.TestData()
+	// asCsv = true
+	analysistest.Run(t, testdata, Analyzer, []string{"b"}...)
 }

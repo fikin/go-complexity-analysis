@@ -1,9 +1,11 @@
 package a
 
+import "fmt"
+
 func f0() { // want "Cyclomatic complexity: 1"
 }
 
-func f1() { // want "Cyclomatic complexity: 2"
+func f1() { // want "Cyclomatic complexity: 3"
 	if false {
 
 	} else {
@@ -11,7 +13,7 @@ func f1() { // want "Cyclomatic complexity: 2"
 	}
 }
 
-func f2() { // want "Cyclomatic complexity: 9"
+func f2() { // want "Cyclomatic complexity: 8"
 	for true {
 		if false {
 
@@ -40,7 +42,7 @@ func f3() { // want "Cyclomatic complexity: 4"
 	}
 }
 
-func f4() { // want "Cyclomatic complexity: 11"
+func f4() { // want "Cyclomatic complexity: 2"
 	n := 0
 	switch n {
 	case 0:
@@ -54,4 +56,13 @@ func f4() { // want "Cyclomatic complexity: 11"
 	case 8:
 	case 9:
 	}
+}
+
+// f5 is func
+func f5() { // want "Cyclomatic complexity: 1, Halstead difficulty: 3.750, volume: 39.863"
+	const aa = `
+AA
+BB
+`
+	fmt.Printf("%s", aa)
 }

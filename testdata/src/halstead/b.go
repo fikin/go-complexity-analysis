@@ -14,12 +14,12 @@ func comp2() { // want "Cyclomatic complexity: 1, Halstead difficulty: 3.500, vo
 	fmt.Println("hello")
 }
 
-func comp3() { // want "Cyclomatic complexity: 1, Halstead difficulty: 3.500, volume: 41.209"
+func comp3() { // want "Cyclomatic complexity: 3, Halstead difficulty: 3.500, volume: 41.209"
 	go fmt.Println("hello")
 	fmt.Println("world")
 }
 
-func comp4() { // want "Cyclomatic complexity: 1, Halstead difficulty: 12.000, volume: 101.579"
+func comp4() { // want "Cyclomatic complexity: 5, Halstead difficulty: 12.000, volume: 101.579"
 	a := make(chan string)
 	go func() { a <- "ping" }()
 
@@ -32,7 +32,7 @@ func comp5() { // want "Cyclomatic complexity: 1, Halstead difficulty: 3.500, vo
 	return
 }
 
-func comp6() { // want "Cyclomatic complexity: 3, Halstead difficulty: 7.500, volume: 92.000"
+func comp6() { // want "Cyclomatic complexity: 4, Halstead difficulty: 7.500, volume: 92.000"
 	var a int
 	for a < 5 {
 		if a < 3 {
@@ -44,7 +44,7 @@ func comp6() { // want "Cyclomatic complexity: 3, Halstead difficulty: 7.500, vo
 	}
 }
 
-func comp7() { // want "Cyclomatic complexity: 3, Halstead difficulty: 9.000, volume: 88.000"
+func comp7() { // want "Cyclomatic complexity: 4, Halstead difficulty: 9.000, volume: 88.000"
 	c1 := make(chan string)
 
 	for i := 0; i < 2; i++ {

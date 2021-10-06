@@ -2,44 +2,68 @@
 
 go-complexity-analysis calculates:
 * the Cyclomatic complexities
-* the Halstead complexities (difficulty and volume)
-* the Maintainability indices
+* the Halstead complexities (difficulty, volume, time to code)
+* the Maintainability index
 * lines of code
-  of golang functions.
+* lines of code of (only) variable and constant declarations
 
-Additionally it counts package imports from same application. This is indicator of how interconnected application packages are with each other. Higher number suggests more interconnections and lower code refactoring capability.
+of golang functions.
 
-# Install
+# Install and usage as go-vet tool
 
-```sh
-$ go get github.com/fikin/go-complexity-analysis/cmd/complexity
-```
-
-# Usage
+## Build
 
 ```sh
-$ go vet -vettool=$(which complexity) [flags] [directory/file]
+$ go get github.com/fikin/go-complexity-analysis
+$ go build -o path_to_binary cmd/complexity/main.go
 ```
 
-## Flags
+## Use
+
+```sh
+$ go vet -vettool=<path_to_binary> [flags] [directory/file]
+```
+
+# Install and use as golangcli-lint plugin
+
+## Build
+
+```sh
+$ go build -buildmode=plugin -o path_to_plugin_dir github.com/fikin/complexity/plugin/complexity
+```
+
+## Use
+
+Add to your `.golangci.yml` file
+
+```yaml
+linters-settings:
+  custom:
+    complexity:
+      path: <path to plugin>.so
+      description: Complexity checks cyclomatic complexity and maintainability index
+      original-url: github.com/fikin/complexity
+```
+
+# Flags
 
 `--cycloover`: show functions with the Cyclomatic complexity > N (default: 10)
 
 `--maintunder`: show functions with the Maintainability index < N (default: 20)
 
-`--maxlines`: show functions with lines of code (excluding constants) index < N (default: 50)
-
-`--csv`: print function stats in csv format
-
-`--allstats`: print stats for all functions, even ok ones
+`--csv`: print (all) function stats in csv format
 
 ## Output
 
 ```
 <filename>:<line>:<column>: func <funcname> seems to be complex (cyclomatic complexity=<cyclomatic complexity>)
 <filename>:<line>:<column>: func <funcname> seems to have low maintainability (maintainability index=<maintainability index>)
-<pkgname>,<functions count>,-1,total,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<loc>,<constLoc>,<fileIsGenerated>,<tooComplex>,<notMaintenable>,<tooManyLines>
 ```
+
+If csv flag is used, following are the columns printed:
+
+```
+<file name>,<line>,<column>,<function name>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<time to code>,<loc>,<varDeclarationLoc>,<tooComplex>,<notMaintainable>```
 
 ## Examples
 
@@ -48,10 +72,10 @@ $ go vet -vettool=$(which complexity) --cycloover 10 ./...
 $ go vet -vettool=$(which complexity) --maintunder 20 main.go
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 ./src
 $ go vet -vettool=$(which complexity) --maxlines 30 ./src
-$ go vet -vettool=$(which complexity) --csv --allstats ./src
+$ go vet -vettool=$(which complexity) --csv ./src
 ```
 
-## Github Actions
+# Github Actions
 
 You can use the Github Actions to execute the complexity command on Github pull requests with [reviewdog](https://github.com/reviewdog/reviewdog).
 
@@ -64,15 +88,39 @@ See [fikin/go-complexity-analysis-action](https://github.com/fikin/go-complexity
 
 The Cyclomatic complexity indicates the complexity of a program.
 
-This program calculates the complexities of each function by counting idependent paths with the following rules.
+For background reference see explanations in [wikipedia](https://en.wikipedia.org/wiki/Cyclomatic_complexity).
+
+This program calculates the complexities of each function by counting independent paths with the following rules.
 ```
 Initial value: 1
-+1: if, for, case, ||, &&
++1: if, for, range, select, switch, final-else, chan read, chan write, ||, &&
++2: go subroutine
 ```
+
+The thresholds are as follows:
+```
+0-10 = Green
+11-... = Red
+```
+
+### Differences related to Go-lang nature
+
+Else (final) in if-(else-if-)else construct is considered own branch as Go coding practice discourages such constructs.
+
+Channel read and writes are considered complex operations. Channel operations are used for inter-process communication in Go and require proper channel handling awareness, they are not plain assignments.
+
+Go subroutines spawning are considered extra complex. Subroutines life cycle design and tracking is requiring extra caution from developers, especially if there is use of up-values (enclosing function variables).
+
+Go select and switch constructs are considered single complexity i.e. different case statements are not counted as individual execution paths.
+In Go, case statements are used in places where typically inheritance or polymorphism would otherwise have been used. These situations are not tracked by cyclomatic complexity analysis.
+Additionally, while in some situations it would be possible to split cases into multiple functions, this would not lead to reduced complexity (aka. function extraction), nor to improved code readability.
+Since the focus of this analyzer is to be of more practical value, it was decided to not count individual case statements.
 
 ## Halstead Metrics
 
-Calculation of each Halstead metrics can be found [here](https://www.verifysoft.com/en_halstead_metrics.html).
+Calculation of each Halstead metrics can be found [here](https://www.verifysoft.com/en_halstead_metrics.html) and [wikipedia](https://en.wikipedia.org/wiki/Halstead_complexity_measures).
+
+This analyzer is calculating halstead difficulty, volume and time-to-code metrics. They are provided in csv output format.
 
 ### Rules
 
@@ -90,7 +138,7 @@ Calculation of each Halstead metrics can be found [here](https://www.verifysoft.
     - Parenthesis, such as "()", is counted as one operator
 - [Keywords](!https://golang.org/ref/spec#Keywords)
 
-## Maintainability Index
+# Maintainability Index
 
 The Maintainability index represents maintainability of a program.
 
@@ -111,30 +159,13 @@ The thresholds are as follows:
 20-100 = Green
 ```
 
-## Too many lines of code
+# Lines of code
 
-This check is calculating function's lines of code, excluding lines for constants.
+In csv output format, the analyzer is outputting function's total lines of code.
 
-## CSV export
+Additionally it calculates the function's total lines of codes for all constant and variable declarations.
+This metrics can be used to reveal if some function is having large halstead volume (and thus low maintainability index) due to too much configuration data. This is applicable specifically for table-driven test case coding practice.
+
+# CSV export
 
 The analyzer can print data in csv format in order to offer easy import into other tools.
-
-## Excluding individual functions 
-
-The analyzer is recognizing following function comment:
-```
-//complexity:ignore
-func ...
-```
-
-If provided, the function is excluded from the checks.
-
-## Working with generated files
-
-The analyzer is recognizing following file comment:
-```
-// Code generated by ABC. DO NOT EDIT.
-...
-```
-
-If such comment is present, the entire file is excluded from the checks.

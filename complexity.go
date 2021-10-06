@@ -39,23 +39,18 @@ type statsType struct {
 	timeToCode     float64
 	tooComplex     bool
 	notMaintenable bool
-	tooManyLines   bool
 }
 
 var (
-	cycloover       int
-	maintunder      int
-	maxlines        int
-	asCsv           bool
-	printEverything bool
+	cycloover  int
+	maintunder int
+	asCsv      bool
 )
 
 func init() {
 	flag.IntVar(&cycloover, "cycloover", 10, "print functions with the Cyclomatic complexity > N")
 	flag.IntVar(&maintunder, "maintunder", 20, "print functions with the Maintainability index < N")
-	flag.IntVar(&maxlines, "maxlines", 50, "print functions with too many LOC, excluding constants, index < N")
 	flag.BoolVar(&asCsv, "csv", false, "print stats in csv")
-	flag.BoolVar(&printEverything, "allstats", false, "print all stats, even ok ones")
 }
 
 func runComp(pass *analysis.Pass) (interface{}, error) {
@@ -71,7 +66,7 @@ func runComp(pass *analysis.Pass) (interface{}, error) {
 			if flag.Lookup("test.v") != nil {
 				// Only when `go test`
 				pass.Reportf(nn.Pos(), "Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", stats.cyclo, stats.halsbreadDiff, stats.halsbreadVol)
-			} else if stats.tooComplex || stats.notMaintenable || stats.tooManyLines {
+			} else if stats.tooComplex || stats.notMaintenable {
 				someCheckFailed = true
 			}
 		})
@@ -106,7 +101,6 @@ func calcFuncStats(pass *analysis.Pass, n *ast.FuncDecl) statsType {
 	stats.maintenability = calcMaintIndex(stats.halsbreadVol, stats.cyclo, stats.loc)
 	stats.tooComplex = stats.cyclo > cycloover
 	stats.notMaintenable = stats.maintenability < maintunder
-	stats.tooManyLines = (stats.loc - stats.constLoc) > maxlines
 	stats.timeToCode = stats.halsbreadDiff * stats.halsbreadVol / (18 * 3600)
 
 	return stats
@@ -539,12 +533,12 @@ func countLOC(fs *token.FileSet, n ast.Node) int {
 
 func printFuncStats(stats statsType) {
 	if asCsv {
-		fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%0.3f,%d,%d,%t,%t,%t\n",
+		fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%0.3f,%d,%d,%t,%t\n",
 			stats.filename, stats.line, stats.col, stats.funcname,
 			stats.cyclo, stats.maintenability, stats.halsbreadDiff,
 			stats.halsbreadVol, stats.timeToCode,
 			stats.loc, stats.constLoc,
-			stats.tooComplex, stats.notMaintenable, stats.tooManyLines)
+			stats.tooComplex, stats.notMaintenable)
 		return
 	}
 	if stats.tooComplex {
@@ -553,10 +547,6 @@ func printFuncStats(stats statsType) {
 	}
 	if stats.notMaintenable {
 		msg := fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)", stats.funcname, stats.maintenability)
-		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
-	}
-	if stats.tooManyLines {
-		msg := fmt.Sprintf("func %s seems to have too many lines, excluding const declarations (logicLOC=%d)", stats.funcname, (stats.loc - stats.constLoc))
 		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
 	}
 }

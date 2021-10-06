@@ -169,3 +169,12 @@ This metrics can be used to reveal if some function is having large halstead vol
 # CSV export
 
 The analyzer can print data in csv format in order to offer easy import into other tools.
+
+For example, here is how one can gather statistics in csv format from current directory:
+
+```
+( echo "file name,line,column,function name,cyclomatic complexity,maintainability index,halstead difficulty,halstead volume,\
+time to code,loc,declLoc,too complex,not maintainable" && \
+  ( go vet -vettool=[path to binary] --csv ./... 2>&1 ) \
+) | sed '/#/d' | sed '/complexity: /d' > [out file].csv
+```

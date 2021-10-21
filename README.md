@@ -15,7 +15,7 @@ This is the most convenient way to execute the analysis.
 
 It supports following specific for this mode only additional cmdline options: 
 
-`--output-format`: report diagnostic in one of : 'txt' (similar to go vet output), 'csv' (very detailed information) and 'checkstyle' (xml compatible with golangci-lint format), (default: txt)
+`--out-format`: report diagnostic in one of : 'txt' (similar to go vet output), 'csv' (very detailed information) and 'checkstyle' (xml compatible with golangci-lint format), (default: txt)
 
 Csv format is:
 
@@ -34,8 +34,8 @@ $ ${GOPATH}/bin/complexity [flags] [directory/file]
 In this mode go vet will be calling the analyzer.
 
 ```sh
-$ go get github.com/fikin/go-complexity-analysis/cmd/complexity
-$ go vet -vettool=${GOPATH}/bin/complexity [flags] [directory/file]
+$ go get github.com/fikin/go-complexity-analysis/cmd/complexityvet
+$ go vet -vettool=${GOPATH}/bin/complexityvet [flags] [directory/file]
 ```
 
 # Install and use as golangcli-lint plugin

@@ -25,56 +25,52 @@ var Analyzer = &analysis.Analyzer{
 	},
 }
 
-type statsType struct {
-	filename       string
-	line           int
-	col            int
-	funcname       string
-	loc            int
-	constLoc       int
-	cyclo          int
-	maintenability int
-	halsbreadDiff  float64
-	halsbreadVol   float64
-	timeToCode     float64
-	tooComplex     bool
-	notMaintenable bool
+// FuncStatsType is statistics of a single function
+type FuncStatsType struct {
+	Filename             string
+	Line                 int
+	FunctionName         string
+	LOC                  int
+	ConstantsLOC         int
+	CyclomaticComplexity int
+	MaintenabilityIndex  int
+	HalsbreadDifficulty  float64
+	HalsbreadVolume      float64
+	TimeToCode           float64
+	IsTooComplex         bool
+	IsNotMaintenable     bool
 }
+
+// FuncStatsCallback is called on each processed function statictics
+// Main is to define its own callback logic instead.
+var FuncStatsCallback = func(s FuncStatsType) {}
 
 var (
 	cycloover  int
 	maintunder int
-	asCsv      bool
 )
 
 func init() {
 	flag.IntVar(&cycloover, "cycloover", 10, "print functions with the Cyclomatic complexity > N")
 	flag.IntVar(&maintunder, "maintunder", 20, "print functions with the Maintainability index < N")
-	flag.BoolVar(&asCsv, "csv", false, "print stats in csv")
 }
 
-func runComp(pass *analysis.Pass) (interface{}, error) {
+func runComp(pass *analysis.Pass) (facts interface{}, err error) {
 	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	if !ok {
 		return nil, fmt.Errorf("internal error, wrong inspector.Inspector type")
 	}
-	someCheckFailed := false
 	inspector.Preorder([]ast.Node{(*ast.File)(nil)}, func(n ast.Node) {
 		astVisitFunctions(n, func(nn *ast.FuncDecl) {
 			stats := calcFuncStats(pass, nn)
-			printFuncStats(stats)
-			if flag.Lookup("test.v") != nil {
-				// Only when `go test`
-				pass.Reportf(nn.Pos(), "Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", stats.cyclo, stats.halsbreadDiff, stats.halsbreadVol)
-			} else if stats.tooComplex || stats.notMaintenable {
-				someCheckFailed = true
+			reportFnc := func(msg string, args ...interface{}) {
+				pass.Reportf(nn.Pos(), msg, args...)
 			}
+			reportFuncStats(reportFnc, stats)
+			FuncStatsCallback(stats)
 		})
 	})
-	if someCheckFailed {
-		return nil, fmt.Errorf("some functions are too complex or big")
-	}
-	return nil, nil
+	return
 }
 
 type branchVisitor func(n ast.Node) (w ast.Visitor)
@@ -84,24 +80,23 @@ func (v branchVisitor) Visit(n ast.Node) (w ast.Visitor) {
 	return v(n)
 }
 
-func calcFuncStats(pass *analysis.Pass, n *ast.FuncDecl) statsType {
+func calcFuncStats(pass *analysis.Pass, n *ast.FuncDecl) FuncStatsType {
 	nPos := n.Pos()
 	pos := pass.Fset.File(nPos).Position(nPos)
 
-	stats := statsType{
-		filename: pos.Filename,
-		line:     pos.Line,
-		col:      pos.Column,
-		funcname: n.Name.Name,
-		loc:      countLOC(pass.Fset, n),
-		constLoc: countVarsLOC(pass.Fset, n),
-		cyclo:    calcCycloComp(n),
+	stats := FuncStatsType{
+		Filename:             pos.Filename,
+		Line:                 pos.Line,
+		FunctionName:         n.Name.Name,
+		LOC:                  countLOC(pass.Fset, n),
+		ConstantsLOC:         countVarsLOC(pass.Fset, n),
+		CyclomaticComplexity: calcCycloComp(n),
 	}
-	stats.halsbreadDiff, stats.halsbreadVol = calcHalstComp(n)
-	stats.maintenability = calcMaintIndex(stats.halsbreadVol, stats.cyclo, stats.loc)
-	stats.tooComplex = stats.cyclo > cycloover
-	stats.notMaintenable = stats.maintenability < maintunder
-	stats.timeToCode = stats.halsbreadDiff * stats.halsbreadVol / (18 * 3600)
+	stats.HalsbreadDifficulty, stats.HalsbreadVolume = calcHalstComp(n)
+	stats.MaintenabilityIndex = calcMaintIndex(stats.HalsbreadVolume, stats.CyclomaticComplexity, stats.LOC)
+	stats.IsTooComplex = stats.CyclomaticComplexity > cycloover
+	stats.IsNotMaintenable = stats.MaintenabilityIndex < maintunder
+	stats.TimeToCode = stats.HalsbreadDifficulty * stats.HalsbreadVolume / (18 * 3600)
 
 	return stats
 }
@@ -531,22 +526,24 @@ func countLOC(fs *token.FileSet, n ast.Node) int {
 	return endLine - startLine + 1
 }
 
-func printFuncStats(stats statsType) {
-	if asCsv {
-		fmt.Printf("%s,%d,%d,%s,%d,%d,%0.3f,%0.3f,%0.3f,%d,%d,%t,%t\n",
-			stats.filename, stats.line, stats.col, stats.funcname,
-			stats.cyclo, stats.maintenability, stats.halsbreadDiff,
-			stats.halsbreadVol, stats.timeToCode,
-			stats.loc, stats.constLoc,
-			stats.tooComplex, stats.notMaintenable)
+func reportFuncStats(reportFnc func(msg string, args ...interface{}), stats FuncStatsType) {
+	if flag.Lookup("test.v") != nil {
+		// Only when `go test`
+		reportFnc("Cyclomatic complexity: %d, Halstead difficulty: %0.3f, volume: %0.3f", stats.CyclomaticComplexity, stats.HalsbreadDifficulty, stats.HalsbreadVolume)
 		return
 	}
-	if stats.tooComplex {
-		msg := fmt.Sprintf("func %s seems to be complex (cyclomatic complexity=%d)", stats.funcname, stats.cyclo)
-		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
+	msg := ToDiagnosticMsg(stats)
+	if msg != "" {
+		reportFnc("%s:%d: %s\n", stats.Filename, stats.Line, msg)
 	}
-	if stats.notMaintenable {
-		msg := fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)", stats.funcname, stats.maintenability)
-		fmt.Printf("%s:%d:%d: %s\n", stats.filename, stats.line, stats.col, msg)
+}
+
+// ToDiagnosticMsg is used to form diagnostic message for not-good functions
+func ToDiagnosticMsg(stats FuncStatsType) (msg string) {
+	if stats.IsTooComplex {
+		msg = fmt.Sprintf("func %s seems to be complex (cyclomatic complexity=%d)", stats.FunctionName, stats.CyclomaticComplexity)
+	} else if stats.IsNotMaintenable {
+		msg = fmt.Sprintf("func %s seems to have low maintainability (maintainability index=%d)", stats.FunctionName, stats.MaintenabilityIndex)
 	}
+	return
 }

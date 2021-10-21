@@ -9,49 +9,65 @@ go-complexity-analysis calculates:
 
 of golang functions.
 
-# Install and usage as go-vet tool
+# Install and usage as cmdline application
 
-## Build
+This is the most convenient way to execute the analysis.
+
+It supports following specific for this mode only additional cmdline options: 
+
+`--output-format`: report diagnostic in one of : 'txt' (similar to go vet output), 'csv' (very detailed information) and 'checkstyle' (xml compatible with golangci-lint format), (default: txt)
+
+Csv format is:
+
+```
+<file name>,<line>,<function name>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<time to code>,<loc>,<varDeclarationLoc>,<isTooComplex>,<isNotMaintainable>```
+
+Additionally it exists with error code in case there are any diagnostics found.
 
 ```sh
-$ go get github.com/fikin/go-complexity-analysis
-$ go build -o path_to_binary cmd/complexity/main.go
+$ go get github.com/fikin/go-complexity-analysis/cmd/complexity
+$ ${GOPATH}/bin/complexity [flags] [directory/file]
 ```
 
-## Use
+# Install and usage as go-vet tool
+
+In this mode go vet will be calling the analyzer.
 
 ```sh
-$ go vet -vettool=<path_to_binary> [flags] [directory/file]
+$ go get github.com/fikin/go-complexity-analysis/cmd/complexity
+$ go vet -vettool=${GOPATH}/bin/complexity [flags] [directory/file]
 ```
 
 # Install and use as golangcli-lint plugin
 
-## Build
+Note: golangci-lint mandates the plugins must be compiled with *exact* same dependencies, transient included, as golangci-lint version used. It is very impractical to automate the plugin building outside golangci-lint build pipeline.
 
 ```sh
-$ go build -buildmode=plugin -o path_to_plugin_dir github.com/fikin/complexity/plugin/complexity
+$ mkdir -p ${GOPATH}/src/fikin
+$ cd ${GOPATH}/src/fikin
+$ git clone github.com/fikin/go-complexity-analysis
+$ cd go-complexity-analysis
+$ go build -buildmode=plugin -o plugin_file plugin/main.go
 ```
 
-## Use
-
-Add to your `.golangci.yml` file
+Add to your project's `.golangci.yml` file:
 
 ```yaml
 linters-settings:
   custom:
     complexity:
-      path: <path to plugin>.so
+      path: <plugin_file>
       description: Complexity checks cyclomatic complexity and maintainability index
       original-url: github.com/fikin/complexity
 ```
 
-# Flags
+# Flags in all modes
 
 `--cycloover`: show functions with the Cyclomatic complexity > N (default: 10)
 
 `--maintunder`: show functions with the Maintainability index < N (default: 20)
 
-`--csv`: print (all) function stats in csv format
+Every function crossing any of these thresholds will be reported.
 
 ## Output
 
@@ -60,19 +76,12 @@ linters-settings:
 <filename>:<line>:<column>: func <funcname> seems to have low maintainability (maintainability index=<maintainability index>)
 ```
 
-If csv flag is used, following are the columns printed:
-
-```
-<file name>,<line>,<column>,<function name>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<time to code>,<loc>,<varDeclarationLoc>,<tooComplex>,<notMaintainable>```
-
 ## Examples
 
 ```go
-$ go vet -vettool=$(which complexity) --cycloover 10 ./...
+$ complexity --cycloover 10 ./...
 $ go vet -vettool=$(which complexity) --maintunder 20 main.go
 $ go vet -vettool=$(which complexity) --cycloover 5 --maintunder 30 ./src
-$ go vet -vettool=$(which complexity) --maxlines 30 ./src
-$ go vet -vettool=$(which complexity) --csv ./src
 ```
 
 # Github Actions

@@ -76,7 +76,9 @@ func analyze(pkgs []*packages.Package, analyzers []*analysis.Analyzer) []foundDi
 		analyzerResults := analyzerResultsType{}
 		for _, a := range analyzers {
 			diags, err := analyzePkg(&analyzerResults, pkg, a)
-			d = append(d, foundDiagnosticsStruct{pkg: pkg, diagnostics: diags, err: err})
+			if err != nil || len(diags) > 0 {
+				d = append(d, foundDiagnosticsStruct{pkg: pkg, diagnostics: diags, err: err})
+			}
 		}
 	}
 	return d

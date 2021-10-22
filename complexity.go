@@ -46,13 +46,14 @@ type FuncStatsType struct {
 var FuncStatsCallback = func(s FuncStatsType) {}
 
 var (
-	cycloover  int
-	maintunder int
+	CycloOver   int
+	MaintUnder  int
+	SkipFileFnc = func(filename string) bool { return false }
 )
 
 func init() {
-	flag.IntVar(&cycloover, "cycloover", 10, "print functions with the Cyclomatic complexity > N")
-	flag.IntVar(&maintunder, "maintunder", 20, "print functions with the Maintainability index < N")
+	flag.IntVar(&CycloOver, "cycloover", 10, "print functions with the Cyclomatic complexity > N")
+	flag.IntVar(&MaintUnder, "maintunder", 20, "print functions with the Maintainability index < N")
 }
 
 func runComp(pass *analysis.Pass) (facts interface{}, err error) {
@@ -61,6 +62,9 @@ func runComp(pass *analysis.Pass) (facts interface{}, err error) {
 		return nil, fmt.Errorf("internal error, wrong inspector.Inspector type")
 	}
 	inspector.Preorder([]ast.Node{(*ast.File)(nil)}, func(n ast.Node) {
+		if SkipFileFnc(pass.Fset.File(n.Pos()).Name()) {
+			return
+		}
 		astVisitFunctions(n, func(nn *ast.FuncDecl) {
 			stats := calcFuncStats(pass, nn)
 			reportFnc := func(msg string, args ...interface{}) {
@@ -94,8 +98,8 @@ func calcFuncStats(pass *analysis.Pass, n *ast.FuncDecl) FuncStatsType {
 	}
 	stats.HalsbreadDifficulty, stats.HalsbreadVolume = calcHalstComp(n)
 	stats.MaintenabilityIndex = calcMaintIndex(stats.HalsbreadVolume, stats.CyclomaticComplexity, stats.LOC)
-	stats.IsTooComplex = stats.CyclomaticComplexity > cycloover
-	stats.IsNotMaintenable = stats.MaintenabilityIndex < maintunder
+	stats.IsTooComplex = stats.CyclomaticComplexity > CycloOver
+	stats.IsNotMaintenable = stats.MaintenabilityIndex < MaintUnder
 	stats.TimeToCode = stats.HalsbreadDifficulty * stats.HalsbreadVolume / (18 * 3600)
 
 	return stats

@@ -45,4 +45,5 @@ golang.org/x/tools/txtar
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+## explicit
 gopkg.in/yaml.v3

@@ -11,9 +11,14 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// flag option when in standalone cmdline mode
+// flag option only in standalone cmdline mode
 // one of : txt, csv, checkstyle
 var outputFormat = "txt"
+
+// flag option only standalone cmdline mode
+// its format is golangci-lint like yaml configuration
+// subject to limited flags support (see README)
+var configfile string
 
 // gathered function stats to be printed at the end when output-format=csv
 var funcStats = []complexity.FuncStatsType{}
@@ -50,6 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	configureConfigIfGiven()
 	configureOutputFormat()
 
 	os.Exit(run(args, a))
@@ -57,6 +63,7 @@ func main() {
 
 func addCmdlineFlags(a *analysis.Analyzer) {
 	flag.StringVar(&outputFormat, "out-format", "txt", "to print the diagnostics as 'csv', 'checkstyle' xml or vet-like 'txt' (default 'txt')")
+	flag.StringVar(&configfile, "c", "", "configuration like golangci")
 	flag.Usage = func() {
 		paras := strings.Split(a.Doc, "\n\n")
 		fmt.Fprintf(os.Stderr, "%s: %s\n\n", a.Name, paras[0])

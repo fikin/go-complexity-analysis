@@ -50,24 +50,24 @@ func deepScanRequires(analyzer *analysis.Analyzer) []*analysis.Analyzer {
 	return append(arr, analyzer)
 }
 
-// load loads the initial packages.
+// load loads the packages.
 func load(patterns []string) ([]*packages.Package, error) {
 	conf := packages.Config{
 		Mode:  packages.LoadSyntax,
 		Tests: true,
 	}
-	initial, err := packages.Load(&conf, patterns...)
+	pkgs, err := packages.Load(&conf, patterns...)
 	if err == nil {
-		if n := packages.PrintErrors(initial); n > 1 {
+		if n := packages.PrintErrors(pkgs); n > 1 {
 			err = fmt.Errorf("%d errors during loading", n)
 		} else if n == 1 {
 			err = fmt.Errorf("error during loading")
-		} else if len(initial) == 0 {
+		} else if len(pkgs) == 0 {
 			err = fmt.Errorf("%s matched no packages", strings.Join(patterns, " "))
 		}
 	}
 
-	return initial, err
+	return pkgs, err
 }
 
 func analyze(pkgs []*packages.Package, analyzers []*analysis.Analyzer) []foundDiagnosticsStruct {

@@ -17,12 +17,28 @@ It supports following specific for this mode only additional cmdline options:
 
 `--out-format`: report diagnostic in one of : 'txt' (similar to go vet output), 'csv' (very detailed information) and 'checkstyle' (xml compatible with golangci-lint format), (default: txt)
 
+`--c`: a configuration file, similar to golangci-link config file.
+
 Csv format is:
 
 ```
 <file name>,<line>,<function name>,<cyclomatic complexity>,<maintainability index>,<halstead difficulty>,<halstead volume>,<time to code>,<loc>,<varDeclarationLoc>,<isTooComplex>,<isNotMaintainable>```
 
-Additionally it exists with error code in case there are any diagnostics found.
+Supported configuration file must be .yml, .yaml, .toml or .json. Its content is:
+
+```yaml
+run:
+  skip-dirs:
+    - ...
+  skip-files:
+    - ...
+linters-settings:
+  complexity:
+    cyclo-over: 10
+    maint-under: 20
+```
+
+The cmdline application exits with error code in case there are any diagnostics found.
 
 ```sh
 $ go get github.com/fikin/go-complexity-analysis/cmd/complexity

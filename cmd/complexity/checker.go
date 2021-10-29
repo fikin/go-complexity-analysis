@@ -53,8 +53,9 @@ func deepScanRequires(analyzer *analysis.Analyzer) []*analysis.Analyzer {
 // load loads the packages.
 func load(patterns []string) ([]*packages.Package, error) {
 	conf := packages.Config{
-		Mode:  packages.LoadSyntax,
-		Tests: true,
+		Mode:       packages.LoadSyntax,
+		Tests:      theConfig.Run.Tests,
+		BuildFlags: formBuildTags(theConfig.Run.BuildTags),
 	}
 	pkgs, err := packages.Load(&conf, patterns...)
 	if err == nil {
@@ -68,6 +69,13 @@ func load(patterns []string) ([]*packages.Package, error) {
 	}
 
 	return pkgs, err
+}
+
+func formBuildTags(buildTags []string) []string {
+	if len(buildTags) == 0 {
+		return buildTags
+	}
+	return []string{"--tags", strings.Join(buildTags, ",")}
 }
 
 func analyze(pkgs []*packages.Package, analyzers []*analysis.Analyzer) []foundDiagnosticsStruct {

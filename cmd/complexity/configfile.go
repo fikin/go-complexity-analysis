@@ -14,6 +14,7 @@ import (
 
 var skipFiles []*regexp.Regexp
 var skipDirs []*regexp.Regexp
+var theConfig *ConfigFile
 
 // ConfigFile is representing gocomplexity.yml file
 // format is similar to golangci-lint configuration file.
@@ -27,6 +28,8 @@ type ConfigFile struct {
 	Run struct {
 		SkipDirs  []string `yaml:"skip-dirs" json:"skip-dirs"`
 		SkipFiles []string `yaml:"skip-files" json:"skip-files"`
+		BuildTags []string `yaml:"build-tags" json:"build-tags"`
+		Tests     bool     `yaml:"tests" json:"tests"`
 	} `yaml:"run" json:"run"`
 	Issues struct {
 		ExcludeRules []struct {
@@ -59,23 +62,23 @@ func parseConfig(filename string) (*ConfigFile, error) {
 	return c, nil
 }
 
-func configureConfigIfGiven() error {
+func configureConfigIfGiven() (err error) {
 	if configfile != "" {
-		cfg, err := parseConfig(configfile)
+		theConfig, err = parseConfig(configfile)
 		if err != nil {
 			return err
 		}
-		if cfg.LintersSettings.Complexity.CycloOver != nil {
-			complexity.CycloOver = *cfg.LintersSettings.Complexity.CycloOver
+		if theConfig.LintersSettings.Complexity.CycloOver != nil {
+			complexity.CycloOver = *theConfig.LintersSettings.Complexity.CycloOver
 		}
-		if cfg.LintersSettings.Complexity.MaintUnder != nil {
-			complexity.MaintUnder = *cfg.LintersSettings.Complexity.MaintUnder
+		if theConfig.LintersSettings.Complexity.MaintUnder != nil {
+			complexity.MaintUnder = *theConfig.LintersSettings.Complexity.MaintUnder
 		}
-		skipFiles, err = stringArrToRegex(cfg.Run.SkipFiles)
+		skipFiles, err = stringArrToRegex(theConfig.Run.SkipFiles)
 		if err != nil {
 			return err
 		}
-		skipDirs, err = stringArrToRegex(cfg.Run.SkipDirs)
+		skipDirs, err = stringArrToRegex(theConfig.Run.SkipDirs)
 		if err != nil {
 			return err
 		}

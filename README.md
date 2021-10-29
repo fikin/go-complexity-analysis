@@ -28,6 +28,9 @@ Supported configuration file must be .yml, .yaml, .toml or .json. Its content is
 
 ```yaml
 run:
+  tests: true
+  build-tags:
+    - ...
   skip-dirs:
     - ...
   skip-files:

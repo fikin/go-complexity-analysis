@@ -68,6 +68,10 @@ func load(patterns []string) ([]*packages.Package, error) {
 		}
 	}
 
+	for _, p := range pkgs {
+		fmt.Printf("%#v\n\n", p)
+	}
+
 	return pkgs, err
 }
 

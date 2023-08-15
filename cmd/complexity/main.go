@@ -55,7 +55,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	configureConfigIfGiven()
+	if err := configureConfigIfGiven(); err != nil {
+		log.Fatalf("%v", err)
+		os.Exit(1)
+	}
 	configureOutputFormat()
 
 	os.Exit(run(args, a))

@@ -53,6 +53,7 @@ func deepScanRequires(analyzer *analysis.Analyzer) []*analysis.Analyzer {
 // load loads the packages.
 func load(patterns []string) ([]*packages.Package, error) {
 	conf := packages.Config{
+		// nolint:staticcheck
 		Mode:       packages.LoadSyntax,
 		Tests:      theConfig.Run.Tests,
 		BuildFlags: formBuildTags(theConfig.Run.BuildTags),

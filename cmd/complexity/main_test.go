@@ -9,7 +9,9 @@ import (
 )
 
 func TestIt(t *testing.T) {
+	theConfig = &ConfigFile{}
 	// outputFormat = "stylecheck"
+	// assert.NoError(t, configureConfigIfGiven())
 	// configureOutputFormat()
 	funcsCnt := 0
 	oldFnc := complexity.FuncStatsCallback

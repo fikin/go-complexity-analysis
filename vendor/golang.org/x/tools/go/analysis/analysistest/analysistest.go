@@ -298,7 +298,7 @@ func applyDiffsAndCompare(filename string, original, want []byte, edits []diff.E
 	}
 	fixed, err := format.Source(fixedBytes)
 	if err != nil {
-		return fmt.Errorf("%s: error formatting resulting source: %v\n%s", filename, err, fixed)
+		return fmt.Errorf("%s: error formatting resulting source: %v\n%s", filename, err, fixedBytes)
 	}
 
 	want, err = format.Source(want)
@@ -527,7 +527,7 @@ func check(t Testing, gopath string, act *checker.Action) {
 
 		// Any comment starting with "want" is treated
 		// as an expectation, even without following whitespace.
-		if rest := strings.TrimPrefix(text, "want"); rest != text {
+		if rest, ok := strings.CutPrefix(text, "want"); ok {
 			lineDelta, expects, err := parseExpectations(rest)
 			if err != nil {
 				t.Errorf("%s:%d: in 'want' comment: %s", filename, linenum, err)
@@ -575,11 +575,11 @@ func check(t Testing, gopath string, act *checker.Action) {
 	files := act.Package.OtherFiles
 
 	// Hack: these two analyzers need to extract expectations from
-	// all configurations, so include the files are are usually
+	// all configurations, so include the files are usually
 	// ignored. (This was previously a hack in the respective
 	// analyzers' tests.)
 	if act.Analyzer.Name == "buildtag" || act.Analyzer.Name == "directive" {
-		files = append(files[:len(files):len(files)], act.Package.IgnoredFiles...)
+		files = slices.Concat(files, act.Package.IgnoredFiles)
 	}
 
 	for _, filename := range files {

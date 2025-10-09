@@ -99,7 +99,7 @@ func Run(args []string, analyzers []*analysis.Analyzer) (exitcode int) {
 	// without having to remember what code to return.
 	//
 	// TODO(adonovan): interpreting exit codes is like reading tea-leaves.
-	// Insted of wasting effort trying to encode a multidimensional result
+	// Instead of wasting effort trying to encode a multidimensional result
 	// into 7 bits we should just emit structured JSON output, and
 	// an exit code of 0 or 1 for success or failure.
 	exitAtLeast := func(code int) {
@@ -242,15 +242,14 @@ func printDiagnostics(graph *checker.Graph) (exitcode int) {
 
 		// Compute the exit code.
 		var numErrors, rootDiags int
-		// TODO(adonovan): use "for act := range graph.All() { ... }" in go1.23.
-		graph.All()(func(act *checker.Action) bool {
+		for act := range graph.All() {
 			if act.Err != nil {
 				numErrors++
 			} else if act.IsRoot {
 				rootDiags += len(act.Diagnostics)
 			}
-			return true
-		})
+		}
+
 		if numErrors > 0 {
 			exitcode = 1 // analysis failed, at least partially
 		} else if rootDiags > 0 {
@@ -266,12 +265,10 @@ func printDiagnostics(graph *checker.Graph) (exitcode int) {
 
 		var list []*checker.Action
 		var total time.Duration
-		// TODO(adonovan): use "for act := range graph.All() { ... }" in go1.23.
-		graph.All()(func(act *checker.Action) bool {
+		for act := range graph.All() {
 			list = append(list, act)
 			total += act.Duration
-			return true
-		})
+		}
 
 		// Print actions accounting for 90% of the total.
 		sort.Slice(list, func(i, j int) bool {
